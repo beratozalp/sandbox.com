@@ -1,0 +1,300 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Sand:box Ultimate</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10131b;color:white;font-family:Arial;overflow:hidden}
+header{height:53px;background:#202633;display:flex;align-items:center;justify-content:space-between;padding:0 13px}
+header b{font-size:19px}
+button{border:0;color:white;background:#303949;border-radius:10px;padding:10px;font-weight:bold}
+#game{height:calc(100dvh - 260px);min-height:220px;position:relative;background:#111}
+canvas{
+ width:100%;height:100%;display:block;
+ touch-action:none;
+ image-rendering:pixelated;
+ image-rendering:crisp-edges;
+}
+#hud{position:absolute;top:10px;left:10px;background:#202633cc;padding:7px 12px;border-radius:10px;font-size:12px}
+.panel{height:207px;background:#202633;padding:8px}
+.tabs{display:flex;gap:7px;overflow-x:auto;margin-bottom:9px}
+.tabs button{white-space:nowrap;font-size:12px}
+.tabs button.active{background:#087cff}
+.items{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.item{height:46px;display:flex;align-items:center;justify-content:flex-start;gap:9px;padding:5px 9px;font-size:12px;border:1px solid #414b5d;background:#303949}
+.item.active{background:#126bd2;border-color:#8dc5ff}
+.dot{width:20px;height:20px;border-radius:2px;flex-shrink:0}
+.controls{display:flex;gap:8px;margin-top:8px;align-items:center}
+.controls button{font-size:11px}
+input{width:100%;accent-color:#1687ff}
+</style>
+</head>
+<body>
+
+<header>
+<b>🟫 Sand:box Ultimate</b>
+<div>
+<button onclick="pause=!pause;this.textContent=pause?'▶':'Ⅱ'">Ⅱ</button>
+<button onclick="clearAll()">🗑</button>
+</div>
+</header>
+
+<div id="game">
+<canvas id="c"></canvas>
+<div id="hud">● Simülasyon aktif</div>
+</div>
+
+<div class="panel">
+<div class="tabs" id="tabs"></div>
+<div class="items" id="items"></div>
+<div class="controls">
+<button onclick="brush=Math.max(1,brush-1);sizeText()">−</button>
+<div style="flex:1">
+<div style="font-size:10px;margin-bottom:3px">Fırça boyutu: <span id="size">4</span></div>
+<input type="range" min="1" max="12" value="4" oninput="brush=+this.value;sizeText()">
+</div>
+<button onclick="brush=Math.min(12,brush+1);sizeText()">+</button>
+<button onclick="clearAll()">Sıfırla</button>
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
+
+const W=180,H=120;
+let grid=new Uint8Array(W*H);
+let life=new Uint8Array(W*H);
+let selected=1,brush=4,pause=false;
+
+const materials=[
+{id:1,n:"Kum",e:"🟡",c:"#e6bd55",cat:"Doğa"},
+{id:2,n:"Su",e:"💧",c:"#278eea",cat:"Sıvılar"},
+{id:3,n:"Taş",e:"🪨",c:"#858b94",cat:"Doğa"},
+{id:4,n:"Ateş",e:"🔥",c:"#ff5828",cat:"Enerji"},
+{id:5,n:"Odun",e:"🪵",c:"#88532e",cat:"Doğa"},
+{id:6,n:"Bitki",e:"🌱",c:"#40bd50",cat:"Doğa"},
+{id:7,n:"Duman",e:"☁️",c:"#929ca8",cat:"Enerji"},
+{id:8,n:"Duvar",e:"🧱",c:"#686b76",cat:"Doğa"},
+{id:9,n:"Yağ",e:"🟠",c:"#d69b29",cat:"Sıvılar"},
+{id:10,n:"Lav",e:"🌋",c:"#f34816",cat:"Enerji"},
+{id:11,n:"Buz",e:"🧊",c:"#8cdbf4",cat:"Sıvılar"},
+{id:12,n:"Kar",e:"❄️",c:"#e8f3ff",cat:"Sıvılar"},
+{id:13,n:"Tuz",e:"⚪",c:"#e4e4e4",cat:"Doğa"},
+{id:14,n:"Asit",e:"🧪",c:"#9af32b",cat:"Sıvılar"},
+{id:15,n:"Metal",e:"🔩",c:"#9ca9b8",cat:"Doğa"},
+{id:16,n:"Buhar",e:"♨️",c:"#c5d8e6",cat:"Enerji"},
+{id:17,n:"Kömür",e:"⬛",c:"#353535",cat:"Doğa"},
+{id:18,n:"Bal",e:"🍯",c:"#d99b23",cat:"Sıvılar"}
+];
+
+const cats=["Doğa","Sıvılar","Enerji","Hepsi"];
+let cat="Doğa";
+
+function sizeText(){
+ document.getElementById("size").textContent=brush;
+}
+
+function createMenu(){
+ const tabs=document.getElementById("tabs");
+ tabs.innerHTML="";
+ cats.forEach(a=>{
+  let b=document.createElement("button");
+  b.textContent=a;
+  b.className=a===cat?"active":"";
+  b.onclick=()=>{cat=a;createMenu()};
+  tabs.appendChild(b);
+ });
+
+ const items=document.getElementById("items");
+ items.innerHTML="";
+ materials.filter(m=>cat==="Hepsi"||m.cat===cat).forEach(m=>{
+  let b=document.createElement("button");
+  b.className="item"+(selected===m.id?" active":"");
+  b.innerHTML=`<span class="dot" style="background:${m.c}"></span>${m.e} ${m.n}`;
+  b.onclick=()=>{selected=m.id;createMenu()};
+  items.appendChild(b);
+ });
+}
+createMenu();
+
+function resize(){
+ canvas.width=W;
+ canvas.height=H;
+}
+resize();
+window.addEventListener("resize",resize);
+
+function get(x,y){
+ return x<0||x>=W||y<0||y>=H?8:grid[y*W+x];
+}
+function set(x,y,v){
+ if(x>=0&&x<W&&y>=0&&y<H)grid[y*W+x]=v;
+}
+function swap(x,y,nx,ny){
+ let a=get(x,y),b=get(nx,ny);
+ set(x,y,b);set(nx,ny,a);
+}
+
+function clearAll(){
+ grid.fill(0);
+ life.fill(0);
+}
+
+let drawing=false,lastX=-1,lastY=-1;
+
+function position(e){
+ const r=canvas.getBoundingClientRect();
+ return {
+ x:Math.floor((e.clientX-r.left)/r.width*W),
+ y:Math.floor((e.clientY-r.top)/r.height*H)
+ };
+}
+
+function pour(x,y){
+ for(let dx=-brush;dx<=brush;dx++){
+  for(let dy=-brush;dy<=brush;dy++){
+   if(dx*dx+dy*dy>brush*brush)continue;
+   if(Math.random()>.8)continue;
+   let nx=x+dx,ny=y+dy;
+   if(nx<0||nx>=W||ny<0||ny>=H)continue;
+   set(nx,ny,selected);
+   life[ny*W+nx]=0;
+  }
+ }
+}
+
+canvas.addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ drawing=true;
+ canvas.setPointerCapture(e.pointerId);
+ let p=position(e);
+ lastX=p.x;lastY=p.y;
+ pour(p.x,p.y);
+});
+
+canvas.addEventListener("pointermove",e=>{
+ if(!drawing)return;
+ e.preventDefault();
+ let p=position(e);
+ let dx=p.x-lastX,dy=p.y-lastY;
+ let steps=Math.max(Math.abs(dx),Math.abs(dy),1);
+ for(let i=1;i<=steps;i++){
+  pour(
+   Math.round(lastX+dx*i/steps),
+   Math.round(lastY+dy*i/steps)
+  );
+ }
+ lastX=p.x;lastY=p.y;
+});
+
+canvas.addEventListener("pointerup",()=>drawing=false);
+canvas.addEventListener("pointercancel",()=>drawing=false);
+
+function update(){
+ if(pause)return;
+
+ for(let y=H-1;y>=0;y--){
+  let reverse=Math.random()<.5;
+
+  for(let i=0;i<W;i++){
+   let x=reverse?W-1-i:i;
+   let v=get(x,y);
+   if(v===0)continue;
+
+   if(v===1||v===12||v===13){
+    if(get(x,y+1)===0)swap(x,y,x,y+1);
+    else{
+     let d=Math.random()<.5?1:-1;
+     if(get(x+d,y+1)===0)swap(x,y,x+d,y+1);
+     else if(get(x-d,y+1)===0)swap(x,y,x-d,y+1);
+    }
+   }
+
+   if([2,9,10,14,18].includes(v)){
+    if(get(x,y+1)===0)swap(x,y,x,y+1);
+    else{
+     let d=Math.random()<.5?1:-1;
+     if(get(x+d,y+1)===0)swap(x,y,x+d,y+1);
+     else if(get(x-d,y+1)===0)swap(x,y,x-d,y+1);
+     else if(get(x+d,y)===0)swap(x,y,x+d,y);
+     else if(get(x-d,y)===0)swap(x,y,x-d,y);
+    }
+   }
+
+   if(v===4||v===10){
+    let around=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+    for(let [nx,ny] of around){
+     let n=get(nx,ny);
+     if((n===5||n===6||n===17)&&Math.random()<.08)set(nx,ny,4);
+     if(n===9&&Math.random()<.08)set(nx,ny,4);
+    }
+    if(Math.random()<.025)set(x,y,7);
+   }
+
+   if(v===7||v===16){
+    if(get(x,y-1)===0)swap(x,y,x,y-1);
+    else if(Math.random()<.03)set(x,y,0);
+   }
+
+   if(v===14){
+    let around=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+    for(let [nx,ny] of around){
+     let n=get(nx,ny);
+     if((n===3||n===15||n===8)&&Math.random()<.02)set(nx,ny,0);
+    }
+   }
+
+   if(v===11&&Math.random()<.0005)set(x,y,2);
+
+   if(v===6&&Math.random()<.005){
+    if(get(x,y-1)===2||get(x,y+1)===2){
+     if(get(x,y-1)===0)set(x,y-1,6);
+    }
+   }
+  }
+ }
+}
+
+function render(){
+ ctx.imageSmoothingEnabled=false;
+ ctx.fillStyle="#111111";
+ ctx.fillRect(0,0,W,H);
+
+ for(let y=0;y<H;y++){
+  for(let x=0;x<W;x++){
+   let v=get(x,y);
+   if(v===0)continue;
+
+   let m=materials.find(a=>a.id===v);
+   if(!m)continue;
+
+   ctx.fillStyle=m.c;
+   ctx.fillRect(x,y,1,1);
+
+   // Kare piksellerde küçük renk detayları
+   if((x*7+y*13)%5===0){
+    ctx.fillStyle="rgba(255,255,255,0.13)";
+    ctx.fillRect(x,y,1,1);
+   }
+
+   if((x*11+y*3)%7===0){
+    ctx.fillStyle="rgba(0,0,0,0.20)";
+    ctx.fillRect(x,y,1,1);
+   }
+  }
+ }
+}
+
+function loop(){
+ update();
+ render();
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
